@@ -39,7 +39,7 @@ the scan. It has been exercised end-to-end against real hardware.
 ./gradlew --offline assembleDebug  # debug APK
 ./gradlew testDebugUnitTest        # JVM unit tests (protocol layer)
 ./gradlew --offline installDebug   # install to a connected device
-adb shell am start -n app.burro.firehoseremote/.ui.MainActivity
+adb shell am start -n io.github.austriancanvassociety.firehoseremote/.ui.MainActivity
 ```
 
 The debug APK lands at `app/build/outputs/apk/debug/app-debug.apk`, and the

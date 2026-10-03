@@ -22,7 +22,7 @@ if (hasReleaseSigning) {
 }
 
 android {
-    namespace 'app.burro.firehoseremote'
+    namespace 'io.github.austriancanvassociety.firehoseremote'
     compileSdk 36
 
     // The instrumentation classes are platform code, but they are not in
@@ -33,11 +33,11 @@ android {
     useLibrary 'android.test.base'
 
     defaultConfig {
-        applicationId 'app.burro.firehoseremote'
+        applicationId 'io.github.austriancanvassociety.firehoseremote'
         minSdk 24
         targetSdk 36
-        versionCode 1
-        versionName '0.1.0'
+        versionCode 2
+        versionName '0.1.1'
         testInstrumentationRunner 'android.test.InstrumentationTestRunner'
     }
 
