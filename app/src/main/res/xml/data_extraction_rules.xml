@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing leaves this phone. The stored pairing token is a credential for the
+  TV, and on Android 12+ `android:allowBackup="false"` alone does not stop a
+  device-to-device transfer on some manufacturers' devices
+  (developer.android.com/identity/data/autobackup, read 2026-09-26). A copied
+  token would also be a copied pairing the user never made on the new phone.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="./" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="./" />
+    </device-transfer>
+</data-extraction-rules>

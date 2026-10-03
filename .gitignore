@@ -1,0 +1,19 @@
+# Android / Gradle build output
+.gradle/
+build/
+app/build/
+local.properties
+# Release signing material, local to whichever machine is building. The
+# properties file points at a keystore kept outside the tree; with no file the
+# release build is unsigned, which is the state on F-Droid's builders.
+keystore.properties
+*.jks
+*.keystore
+# Anchored, so only the top-level folder is ignored and a `captures/` folder
+# deeper in the tree is not swallowed.
+/captures/
+
+# IDE
+.idea/
+*.iml
+.DS_Store

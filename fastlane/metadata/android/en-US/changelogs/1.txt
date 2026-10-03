@@ -1,0 +1,2 @@
+First release. Scan for your Fire TV, pair once with the PIN the TV shows, then
+drive it with buttons and nothing else.

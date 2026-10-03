@@ -1,0 +1,112 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+// Release signing is conditional on a local, gitignored `keystore.properties` at
+// the repo root holding `storeFile`, `storePassword`, `keyAlias` and
+// `keyPassword`. F-Droid's builders and a fresh clone have no such file, so the
+// release build there stays unsigned and its artifact keeps the name AGP gives
+// an unsigned release APK, `app-release-unsigned.apk`.
+// A properties file that omits a key fails the build outright rather than
+// falling back to unsigned: an unsigned APK produced by mistake is the wrong
+// shape to ship.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def hasReleaseSigning = keystorePropertiesFile.exists()
+if (hasReleaseSigning) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+    ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].each { name ->
+        if (!keystoreProperties.getProperty(name)) {
+            throw new GradleException("keystore.properties is missing `${name}`")
+        }
+    }
+}
+
+android {
+    namespace 'app.burro.firehoseremote'
+    compileSdk 36
+
+    // The instrumentation classes are platform code, but they are not in
+    // android.jar — they ship as optional libraries that a build opts into by
+    // name. Opting in is what keeps the device test free of any dependency,
+    // which is the same rule the app itself lives under.
+    useLibrary 'android.test.runner'
+    useLibrary 'android.test.base'
+
+    defaultConfig {
+        applicationId 'app.burro.firehoseremote'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+        testInstrumentationRunner 'android.test.InstrumentationTestRunner'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(keystoreProperties.getProperty('storeFile'))
+                storePassword keystoreProperties.getProperty('storePassword')
+                keyAlias keystoreProperties.getProperty('keyAlias')
+                keyPassword keystoreProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Shrinking is on for release so the shipped dex is genuinely
+            // smaller; renaming stays off (see proguard-rules.pro) so a stack
+            // trace from a user's device is readable. The optimize variant is
+            // AGP's full-shrink default.
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            debuggable true
+        }
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = false
+        }
+    }
+
+    // AGP injects a signed dependency-metadata block into the APK by default.
+    // It is a Google Play mechanism and F-Droid refuses an APK carrying it, so
+    // both halves are switched off here rather than stripped later.
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+
+    lint {
+        // A lint error fails `./gradlew lintDebug`. Deliberately no baseline
+        // file: a baseline freezes today's findings and silently accepts every
+        // one added afterwards. The checks
+        // this project cannot satisfy — the TV's self-signed certificate, the
+        // pre-Android-13 Back override, backup rules under allowBackup=false —
+        // are suppressed at their own call sites, each carrying its reason.
+        abortOnError true
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    // JUnit 3 shape — the platform runner discovers `junit.framework.TestCase`,
+    // which this same artifact supplies, so the device test adds no new
+    // artifact either.
+    androidTestImplementation 'junit:junit:4.13.2'
+}

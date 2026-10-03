@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive launcher icon (API 26+). The three layers are 108dp canvases that the
+  launcher masks to its own shape; only the inner 66dp is guaranteed visible, and
+  the artwork is sized so the droplet fills exactly that.
+
+  `monochrome` is the Android 13+ themed-icon layer. The system discards the
+  other layers and paints this one in the user's chosen tint, so it carries shape
+  only — no colour, no gradient. It is ignored on API 26-32.
+
+  Phones below API 26 (this app's minSdk is 24) ignore this file entirely and use
+  the per-density `mipmap-*dpi/ic_launcher.png` instead.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

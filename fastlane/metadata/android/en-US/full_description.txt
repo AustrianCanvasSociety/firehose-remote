@@ -1,0 +1,17 @@
+Firehose Remote is a remote control for Amazon Fire TV. It talks to the TV directly over your own local network — no ADB, no developer options, no Amazon account, and no cloud service in between.
+
+Press Scan, pick your TV from the list, and type the PIN the TV displays. After that the app remembers the TV and opens straight onto a screen of buttons: a D-pad with OK, Back, Home, Options, Play/Pause, volume up and down, mute, rewind, forward, and Sleep.
+
+Pair more than one TV and the app remembers them all — switch between them without typing a PIN again.
+
+That is the whole app.
+
+Deliberately absent: suggested content, watch-next rails, ads, analytics, telemetry, accounts, and Google Play services. The app has zero runtime dependencies — built-in Android platform APIs only, with no AndroidX, no Compose, no OkHttp, and no coroutines. It is built for F-Droid rather than Google Play, and the code is shaped that way.
+
+Waking a sleeping TV: an idle Fire TV stops answering its control API while still being visible on the network, which is why some third-party remotes report a TV as "not found". This app wakes it and retries the press instead of giving up.
+
+Security posture, for the record: the app is LAN-only, and the TV presents a self-signed certificate, so the app deliberately disables TLS certificate verification — the connection is encrypted but not mutually authenticated. Anyone on the same network who holds the pairing token can drive the TV, so treat it as a credential. The alternative to this tradeoff — an account and a cloud relay — is what this app exists to avoid.
+
+Requirements: Android 7.0 or newer, and a phone on the same network as the Fire TV. The app asks only for what it needs to find and reach the TV on the LAN: internet, network state, and a Wi-Fi multicast lock, which is held only around a scan. There is no telemetry and nothing is sent anywhere except to your TV.
+
+Source code is at https://github.com/AustrianCanvasSociety/firehose-remote

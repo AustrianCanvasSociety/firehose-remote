@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher icon's palette, dark half — the Plate · dark skin. SAMPLE =
+         decoded from the icon PNGs; DERIVED = computed from a sampled value,
+         with the rule stated. Ratios are against this file's `surface` unless
+         noted. -->
+
+    <!-- SAMPLE: the teardrop core. Drives the ring, Select and the key outlines. -->
+    <color name="primary">#17E8FF</color>
+    <color name="on_primary">#010F2E</color> <!-- label on the accent disc -->
+
+    <!-- SAMPLE: the teardrop body, the flat key fill. -->
+    <color name="primary_container">#011A3D</color>
+    <color name="secondary_container">#011A3D</color>
+    <color name="on_secondary_container">#E8F6FF</color> <!-- 17.18:1 on primary_container -->
+    <color name="tertiary_container">#011A3D</color>
+    <color name="on_tertiary_container">#E8F6FF</color>
+
+    <!-- SAMPLE: the icon's dark plate becomes the ground. -->
+    <color name="surface">#010F2E</color>
+    <color name="surface_container_high">#011A3D</color>
+    <color name="on_surface">#E8F6FF</color> <!-- SAMPLE: 17.18:1 on surface -->
+    <color name="on_surface_variant">#8FB4D4</color> <!-- SAMPLE: 7.93:1 on the teardrop body (AAA) -->
+
+    <!-- SAMPLE: the hairline edge every key and the rocker carry. -->
+    <color name="outline">#123C6B</color>
+
+    <!-- The rocker's inter-zone rule: `rgba(255,255,255,.07)` over the panel. -->
+    <color name="rocker_divider">#12FFFFFF</color>
+
+    <!-- SAMPLE: the D-pad ring colour, taken from the icon's own ring: 12.60:1. -->
+    <color name="dpad_ring">#3EF2FD</color>
+
+    <!-- The accent at 12% alpha, for the pressed-state overlay. -->
+    <color name="primary_state_layer">#1F17E8FF</color>
+</resources>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      Held only around an SSDP search, and released immediately after. Android
+      filters multicast packets at the Wi-Fi chip for apps that do not hold this
+      lock, so without it the search sends cleanly and hears nothing back — a
+      silent failure that is indistinguishable from a network with no TVs on it.
+    -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!--
+      The theme is pinned deliberately. Left unset, the app inherits the device's
+      default theme — and on at least one real phone that default uses an OVERLAY
+      action bar: the content view is laid out from y=0 with the bar drawn on top
+      of it, so every view the app creates ends up hidden behind it and the screen
+      looks blank. A framework theme with no action bar removes that failure mode
+      outright, and "buttons and nothing else" is the point of this app.
+
+      Theme.FirehoseRemote (values/themes.xml) extends the same NoActionBar
+      framework theme — the overlay-blank defense is preserved verbatim — and
+      binds the M3 tonal palette (values/colors.xml + values-night/colors.xml)
+      via role tokens so night-mode resource resolution swaps colors per-attribute.
+    -->
+    <!--
+      `tools:ignore="DataExtractionRules"`: lint wants `fullBackupContent` set
+      alongside `dataExtractionRules` for devices below Android 12. `allowBackup`
+      is false, so no backup path runs on any version — cloud, device-to-device
+      or adb — and a second rules file would never be read by anything.
+    -->
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.FirehoseRemote"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="true"
+        android:supportsRtl="true"
+        tools:ignore="DataExtractionRules">
+
+        <!--
+          Rotation, split-screen, dark mode, font size and display size are all
+          handled in place rather than by recreating the activity. Recreating it
+          re-runs onCreate, which rebuilds the flow from stored state and shuts
+          down the worker — so a scan's result, a half-typed PIN and a wake in
+          progress are all thrown away and the user is sent back to the start
+          mid-flow. The views are built in code, so there is nothing to
+          re-inflate: a size change (rotation, split-screen) re-lays them out by
+          itself, and MainActivity.onConfigurationChanged re-draws the current
+          screen for the three changes baked into a built view — night mode
+          (colours), font scale and density (sizes).
+
+          A language change is left out and still recreates; the start screen
+          is where it lands.
+        -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|fontScale|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

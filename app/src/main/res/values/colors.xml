@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher icon's palette, light half. SAMPLE = decoded from the icon
+         PNGs; DERIVED = computed from a sampled value, with the rule stated.
+         Ratios are against this file's `surface`. -->
+
+    <!-- DERIVED: the icon's cyan #17E8FF measures 1.35:1 on a light ground, so
+         the light accent is a darkened derivation of the same hue found by
+         search against the ratio: 6.41:1 (AA). -->
+    <color name="primary">#0A6078</color>
+    <color name="on_primary">#FFFFFF</color> <!-- 7.10:1 on primary -->
+
+    <!-- White keys on a cool off-white ground (the mockup's Plate · light). -->
+    <color name="primary_container">#FFFFFF</color>
+    <color name="secondary_container">#FFFFFF</color>
+    <color name="on_secondary_container">#0A1B2E</color> <!-- 15.67:1 on secondary_container -->
+    <color name="tertiary_container">#FFFFFF</color>
+    <color name="on_tertiary_container">#0A1B2E</color>
+
+    <!-- SAMPLE: the cool off-white ground, biased toward the accent. -->
+    <color name="surface">#EEF4F9</color>
+    <color name="surface_container_high">#FFFFFF</color>
+    <color name="on_surface">#0A1B2E</color> <!-- SAMPLE: 15.67:1 on surface -->
+    <color name="on_surface_variant">#4E6A82</color> <!-- SAMPLE: 5.11:1 on surface (AA) -->
+
+    <!-- SAMPLE: the light edge token, the hairline every key and the rocker carry. -->
+    <color name="outline">#C9DBE8</color>
+
+    <!-- The rocker's inter-zone rule: `rgba(10,27,46,.10)` over the panel. -->
+    <color name="rocker_divider">#1A0A1B2E</color>
+
+    <!-- DERIVED: the accent drives the ring; 6.41:1 on surface, over the 3:1 bar. -->
+    <color name="dpad_ring">#0A6078</color>
+
+    <!-- The accent at 12% alpha, for the pressed-state overlay. -->
+    <color name="primary_state_layer">#1F0A6078</color>
+</resources>

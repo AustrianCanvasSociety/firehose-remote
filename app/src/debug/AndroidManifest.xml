@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only overlay. Its single job is to name an application class, so
+  StrictMode can be installed before anything else runs. The main manifest
+  declares no `android:name` on <application>, so this merges without a
+  conflict, and because the debug source set is not part of a release build the
+  release manifest never mentions DebugStrictMode at all.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:name=".DebugStrictMode" />
+</manifest>
