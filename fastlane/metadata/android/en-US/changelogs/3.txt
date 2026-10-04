@@ -1,0 +1,1 @@
+First release on F-Droid. The store listing and the app's own text now describe it as an open-source, hand-rolled remote for fire TV.

@@ -1583,13 +1583,13 @@ class PairingFlowTest {
     fun threeDevicesSharingANameAllNeedTheirAddressShown() {
         // The rule is "more than one", not "exactly two".
         val devices = listOf(
-            Device(name = "AMAZONDEVICE", ip = "192.0.2.10"),
-            Device(name = "AMAZONDEVICE", ip = "192.0.2.11"),
-            Device(name = "AMAZONDEVICE", ip = "192.0.2.12")
+            Device(name = "HDMI device", ip = "192.0.2.10"),
+            Device(name = "HDMI device", ip = "192.0.2.11"),
+            Device(name = "HDMI device", ip = "192.0.2.12")
         )
 
         assertEquals(
-            setOf("AMAZONDEVICE"),
+            setOf("HDMI device"),
             flow(FakeTransport()).namesNeedingAddress(devices)
         )
     }

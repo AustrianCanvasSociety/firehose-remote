@@ -11,15 +11,15 @@
     <string name="first_run_button">Got it</string>
 
     <string name="scan_again_button">Scan again</string>
-    <string name="scanning">Looking for Fire TVs on your network…</string>
-    <string name="no_devices">No Fire TVs found. Make sure the TV is on and on the same Wi-Fi network as this phone.</string>
+    <string name="scanning">Looking for fire TVs on your network…</string>
+    <string name="no_devices">No fire TVs found. Make sure the TV is on and on the same Wi-Fi network as this phone.</string>
     <string name="vpn_may_block">A VPN is on. It can keep this phone off your home network — turn it off, or allow local network access in the VPN app, then scan again.</string>
     <string name="host_did_not_answer">Something on this network took the connection and then went quiet. That is usually a TV that is not answering — turn it on with its own remote, then scan again.</string>
     <string name="device_not_answering">%1$s (not answering)</string>
     <string name="cancel_wake_button">Cancel</string>
     <string name="unexpected_failure">Something went wrong and that did not finish. Try again — if it keeps happening, close the app and open it again.</string>
-    <string name="host_refused">Something on this network refused the connection, so nothing is listening where the TV\'s control API should be. An idle Fire TV looks like this — turn it on with its own remote, then scan again.</string>
-    <string name="found_devices">Fire TVs found</string>
+    <string name="host_refused">Something on this network refused the connection, so nothing is listening where the TV\'s control API should be. An idle fire TV looks like this — turn it on with its own remote, then scan again.</string>
+    <string name="found_devices">fire TVs found</string>
 
     <!-- The manual route to a TV the scan cannot find. It shows on both the
          empty-scan screen and the did-not-answer screen, so it is worded to
@@ -74,7 +74,7 @@
     <string name="theme_mode_light">Light</string>
     <string name="theme_mode_dark">Dark</string>
     <string name="about_dialog_title">Firehose Remote</string>
-    <string name="about_dialog_body">A minimal Android remote for Amazon Fire TV. Distributed via F-Droid. Zero runtime dependencies.\n\nVersion %1$s\n\nSource: https://github.com/AustrianCanvasSociety/firehose-remote</string>
+    <string name="about_dialog_body">A minimal, open-source, hand-rolled Android remote for fire TV. Distributed via F-Droid. Zero runtime dependencies.\n\nVersion %1$s\n\nSource: https://github.com/AustrianCanvasSociety/firehose-remote</string>
     <!-- Accessibility label for the `⋯` overflow icon in the paired-screen top-bar. -->
     <string name="remote_overflow_button">More options</string>
 

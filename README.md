@@ -1,13 +1,15 @@
 # Firehose Remote
 
-A minimal Android remote for Amazon Fire TV. Buttons and nothing else.
+A minimal, open-source, hand-rolled Android remote for fire TV. Buttons and
+nothing else.
 
 ## What it is
 
-Amazon's Fire TV app is bloated by UI choice, not by protocol requirement. The
-device underneath accepts plain key events over its own local network API, and
-nothing obliges us to reproduce the feed around them. This app is the remote
-that results: press Scan, pick your TV, enter the PIN the TV shows, and drive it.
+The stock fire TV remote app is bloated by UI choice, not by protocol
+requirement. The device underneath accepts plain key events over its own local
+network API, and nothing obliges us to reproduce the feed around them. This app
+is the remote that results: press Scan, pick your TV, enter the PIN the TV
+shows, and drive it.
 
 No suggested content. No watch-next rails. No links out to other apps. No
 accounts, no telemetry, no analytics.
@@ -23,12 +25,12 @@ Four phases, each ending in something visible on a real phone.
 
 | Phase | Deliverable | State |
 |---|---|---|
-| 1 — It finds your TV | Scan, list, and PIN-pair with a Fire TV on the LAN | Shipped |
+| 1 — It finds your TV | Scan, list, and PIN-pair with a fire TV on the LAN | Shipped |
 | 2 — It drives your TV | Every button moves the TV, one tile per D-pad press | Shipped |
 | 3 — It survives real use, and ships | Auto-wake on a sleeping TV, plus the F-Droid work | Shipped |
-| 4 — It is safe to hand to strangers | Press safety, clear errors, any text size, screen-reader support | Released as v0.1.0 |
+| 4 — It is safe to hand to strangers | Press safety, clear errors, any text size, screen-reader support | Released (v0.1.2) |
 
-Phase 1 shipped: the app discovers Fire TVs on the local network, lists them,
+Phase 1 shipped: the app discovers fire TVs on the local network, lists them,
 pairs with the PIN shown on the TV, and persists the token so a relaunch skips
 the scan. It has been exercised end-to-end against real hardware.
 
