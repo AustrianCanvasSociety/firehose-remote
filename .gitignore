@@ -17,3 +17,4 @@ keystore.properties
 .idea/
 *.iml
 .DS_Store
+.claude/phase4-reachable.txt

@@ -137,6 +137,32 @@ class DiscoveryTest {
         assertEquals(null, devices.first { it.ip == "192.0.2.22" }.wakeupMac)
     }
 
+    /**
+     * Answers from one address that disagree about its MAC give it none. The
+     * dedupe keeps the first answer, and a forged one can arrive first — so the
+     * MAC is read across every answer, and an answer with no MAC does not veto
+     * one that has it.
+     */
+    @Test
+    fun answersFromOneAddressThatDisagreeAboutAMacGiveItNone() {
+        val transport = FakeTransport()
+        transport.responder = { TransportResponse(404, "") }
+        val ssdp = FakeSsdp(
+            listOf(
+                FakeSsdp.response("192.0.2.25", usn = "uuid:forged::${Ssdp.SERVICE_TYPE}", wakeupMac = "00:00:5e:00:53:99"),
+                FakeSsdp.response("192.0.2.25", wakeupMac = "00:00:5e:00:53:01"),
+                FakeSsdp.response("192.0.2.22", usn = "uuid:one::${Ssdp.SERVICE_TYPE}"),
+                FakeSsdp.response("192.0.2.22", wakeupMac = "00:00:5e:00:53:02")
+            )
+        )
+
+        val devices = Discovery(transport, ssdp).scan("192.0.2.0/24").devices
+
+        assertEquals("one entry per address", 2, devices.size)
+        assertEquals(null, devices.single { it.ip == "192.0.2.25" }.wakeupMac)
+        assertEquals("00:00:5e:00:53:02", devices.single { it.ip == "192.0.2.22" }.wakeupMac)
+    }
+
     @Test
     fun aDeviceIsNamedFromItsOwnDescriptor() {
         val transport = FakeTransport()

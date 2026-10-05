@@ -949,6 +949,17 @@ class FireTvClientTest {
     }
 
     /**
+     * What Back or Cancel does to a request on the wire, as the platform HTTP
+     * stack reports it: a bare [java.io.InterruptedIOException] with the
+     * worker's interrupt flag already cleared (measured 2026-10-04 on a Redmi
+     * Note 13 Pro 5G — the stack calls `Thread.interrupted()` before it throws).
+     * So the flag is never set here: the exception type is all the code under
+     * test gets, as on a phone.
+     */
+    private fun interruptMidRequest(): Nothing =
+        throw java.io.InterruptedIOException("thread interrupted")
+
+    /**
      * A [Clock] that throws [InterruptedException] from its Nth `sleep`, the
      * way `Thread.sleep` does once `shutdownNow()` has interrupted the worker.
      * Every other sleep is passed to [inner], so gaps stay measurable. Lives
@@ -1005,7 +1016,7 @@ class FireTvClientTest {
         val clock = TestClock()
         val transport = FakeTransport(clock)
         transport.responder = { call ->
-            if ("keyDown" in (call.body ?: "")) throw java.io.InterruptedIOException("interrupted mid-request")
+            if ("keyDown" in (call.body ?: "")) interruptMidRequest()
             TransportResponse(200, "{}")
         }
 
@@ -1024,6 +1035,119 @@ class FireTvClientTest {
         )
         assertTrue("no wake for an interrupt — it is not a sleeping TV",
             transport.calls.none { WAKE_URL in it.url })
+    }
+
+    /**
+     * The interrupt can land while keyUp itself is on the wire — Back or Cancel
+     * at the end of a tap. Whether the TV got it is unknown, and a lost keyUp is
+     * a TV that repeats the key with no timeout of its own. So the keyUp goes
+     * out once more before the press stops, and the caller hears "stopped",
+     * not a TV that failed to answer.
+     */
+    @Test
+    fun interruptedKeyUpRequestIsSentAgainBeforeStopping() {
+        val clock = TestClock()
+        val transport = FakeTransport(clock)
+        var keyUps = 0
+        transport.responder = { call ->
+            if ("keyUp" in (call.body ?: "") && ++keyUps == 1) {
+                interruptMidRequest()
+            }
+            TransportResponse(200, "{}")
+        }
+
+        try {
+            FireTvClient(transport, clock).sendKey(HOST, TOKEN, "dpad_right")
+            fail("an interrupted keyUp must stop the press")
+        } catch (e: InterruptedException) {
+            // expected: the same "stopped" an interrupt anywhere else in the press gives
+        }
+
+        val bodies = transport.calls.map { it.body }
+        assertEquals(
+            "the interrupted keyUp may not have landed, so it goes out again; got: $bodies",
+            listOf(
+                """{"keyActionType":"keyDown"}""",
+                """{"keyActionType":"keyUp"}""",
+                """{"keyActionType":"keyUp"}"""
+            ),
+            bodies
+        )
+        assertTrue("no wake for an interrupt — it is not a sleeping TV",
+            transport.calls.none { WAKE_URL in it.url })
+    }
+
+    /**
+     * The keyUp timed out, and Cancel lands while its retry is on the wire. The
+     * retry is a keyUp like the first, so it gets the same handling: it goes
+     * out once more and the press ends as stopped — not as a TV that failed to
+     * answer, and with no wake.
+     */
+    @Test
+    fun interruptDuringTheKeyUpRetryAfterATimeoutSendsItAgainAndStops() {
+        val clock = TestClock()
+        val transport = FakeTransport(clock)
+        var keyUps = 0
+        transport.responder = { call ->
+            if ("keyUp" in (call.body ?: "")) {
+                when (++keyUps) {
+                    1 -> throw TransportTimeout("keyUp timed out")
+                    2 -> interruptMidRequest()
+                }
+            }
+            TransportResponse(200, "{}")
+        }
+
+        try {
+            FireTvClient(transport, clock).sendKey(HOST, TOKEN, "dpad_right")
+            fail("an interrupted keyUp retry must stop the press")
+        } catch (e: InterruptedException) {
+            // expected
+        }
+
+        val bodies = transport.calls.map { it.body }
+        assertEquals(
+            "timed-out keyUp, interrupted retry, one more keyUp; got: $bodies",
+            listOf(
+                """{"keyActionType":"keyDown"}""",
+                """{"keyActionType":"keyUp"}""",
+                """{"keyActionType":"keyUp"}""",
+                """{"keyActionType":"keyUp"}"""
+            ),
+            bodies
+        )
+        assertTrue("no wake for an interrupt", transport.calls.none { WAKE_URL in it.url })
+    }
+
+    /**
+     * A one-request control (Home, Back, Menu, Play, Rewind, Forward) cancelled
+     * while its request is on the wire has stopped, not failed. Reported as a
+     * failure, the screen would say the TV did not answer after a Cancel, and
+     * the taps queued behind it would be dropped.
+     */
+    @Test
+    fun interruptedOneRequestPressStopsInsteadOfFailing() {
+        val presses: List<Pair<String, (FireTvClient) -> Unit>> = listOf(
+            "home" to { c -> c.pressKey(HOST, TOKEN, "home", keyed = false) },
+            "playPause" to { c -> c.playPause(HOST, TOKEN) },
+            "scanBackward" to { c -> c.scanBackward(HOST, TOKEN) },
+            "scanForward" to { c -> c.scanForward(HOST, TOKEN) }
+        )
+        for ((name, press) in presses) {
+            val clock = TestClock()
+            val transport = FakeTransport(clock)
+            transport.responder = { interruptMidRequest() }
+
+            try {
+                press(FireTvClient(transport, clock))
+                fail("$name: an interrupted request must stop the press")
+            } catch (e: InterruptedException) {
+                // expected
+            }
+
+            assertEquals("$name: one request, not retried; got: ${transport.calls}", 1, transport.calls.size)
+            assertTrue("$name: no wake for an interrupt", transport.calls.none { WAKE_URL in it.url })
+        }
     }
 
     /**
@@ -1061,7 +1185,7 @@ class FireTvClientTest {
         val clock = TestClock()
         val transport = FakeTransport(clock)
         transport.responder = { call ->
-            if (":${FireTvClient.PORT_WAKE}/" in call.url) throw java.io.InterruptedIOException("interrupted mid-request")
+            if (":${FireTvClient.PORT_WAKE}/" in call.url) interruptMidRequest()
             throw TransportConnectionRefused("idle tv")
         }
 
@@ -1089,7 +1213,7 @@ class FireTvClientTest {
         transport.responder = { call ->
             when {
                 ":${FireTvClient.PORT_WAKE}/" in call.url -> TransportResponse(200, "")
-                call.url.endsWith("/v1/FireTV/status") -> throw java.io.InterruptedIOException("interrupted mid-request")
+                call.url.endsWith("/v1/FireTV/status") -> interruptMidRequest()
                 else -> throw TransportConnectionRefused("idle tv")
             }
         }

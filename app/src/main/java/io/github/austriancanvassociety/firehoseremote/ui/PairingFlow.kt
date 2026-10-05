@@ -228,10 +228,17 @@ class PairingFlow(
         return try {
             val result = discovery.scan(cidr)
             // A scan is the only time a TV's `WAKEUP` MAC is heard, and a TV
-            // asleep deeply enough to need it answers nothing — so every answer
-            // that carries one updates the stored pairing now, while it can.
+            // asleep deeply enough to need it answers nothing — so an answer
+            // that carries one fills in a stored pairing's missing MAC now,
+            // while it can. It never replaces one, the same rule as
+            // [learnWakeupMac]: an answer is an unauthenticated UDP datagram
+            // whose source address the sender writes, so a replace would let
+            // anyone on the LAN point the wake at other hardware. Answers that
+            // disagree about the MAC never get this far: [Discovery] gives the
+            // address no MAC at all.
+            val missing = tokenStore.all().filter { it.wakeupMac == null }.map { it.host }.toSet()
             for (device in result.devices) {
-                device.wakeupMac?.let { tokenStore.rememberWakeupMac(device.ip, it) }
+                if (device.ip in missing) device.wakeupMac?.let { tokenStore.rememberWakeupMac(device.ip, it) }
             }
             // The stored TV joins the list *before* the branch below, not inside
             // its `Discovered` arm. An off or asleep TV answers nothing, so a
@@ -745,11 +752,13 @@ class PairingFlow(
                         host = device.ip,
                         name = device.name,
                         token = outcome.token,
-                        // A typed address never heard SSDP, so it brings no MAC
-                        // of its own; re-pairing a stored TV keeps the one the
-                        // store already has rather than erasing it.
-                        wakeupMac = device.wakeupMac
-                            ?: tokenStore.all().firstOrNull { it.host == device.ip }?.wakeupMac
+                        // Re-pairing a stored TV keeps the MAC the store already
+                        // has: the found device's MAC came from an SSDP answer,
+                        // which anyone on the LAN can forge, so it only fills a
+                        // missing one — the rule the scan fill follows. A typed
+                        // address never heard SSDP and brings no MAC at all.
+                        wakeupMac = tokenStore.all().firstOrNull { it.host == device.ip }?.wakeupMac
+                            ?: device.wakeupMac
                     )
                     tokenStore.save(paired)
                     State.Paired(paired)

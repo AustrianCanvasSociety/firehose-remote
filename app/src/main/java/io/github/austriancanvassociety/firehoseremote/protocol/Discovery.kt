@@ -166,6 +166,14 @@ class Discovery(
         // which is the same fallback an unreachable descriptor already gets.
         val namingDeadline = clock.nowMillis() + NAMING_BUDGET_MS
 
+        // The MAC is read across every answer from an address, not from the
+        // one the dedupe below keeps. An answer is a UDP datagram whose source
+        // address the sender writes, so a forged one can arrive first; when the
+        // answers that carry a MAC disagree, the address gets none — the rule
+        // PairingFlow.learnWakeupMac applies to its own search.
+        val agreedMac = responses.groupBy { it.sourceIp }
+            .mapValues { (_, answers) -> answers.mapNotNull { it.wakeupMac }.toSet().singleOrNull() }
+
         return responses
             // Keyed on the address the answer came from, not on the `USN` it
             // claims. A USN is an unauthenticated assertion: any host on the LAN
@@ -190,7 +198,7 @@ class Discovery(
             // much work this phone does.
             .take(Ssdp.MAX_RESPONDERS)
             .map {
-                Device(name = nameFor(it, namingDeadline) ?: it.sourceIp, ip = it.sourceIp, wakeupMac = it.wakeupMac)
+                Device(name = nameFor(it, namingDeadline) ?: it.sourceIp, ip = it.sourceIp, wakeupMac = agreedMac[it.sourceIp])
             }
     }
 

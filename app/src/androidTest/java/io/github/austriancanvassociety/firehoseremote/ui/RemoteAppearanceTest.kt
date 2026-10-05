@@ -11,6 +11,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import io.github.austriancanvassociety.firehoseremote.protocol.Capabilities
 import io.github.austriancanvassociety.firehoseremote.protocol.Device
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -26,6 +27,45 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
     private var saved: Map<String, *> = emptyMap<String, Any>()
     private val prefs get() = instrumentation.targetContext.getSharedPreferences("ui", Context.MODE_PRIVATE)
     private var savedAccessibilitySettings: Map<String, String?>? = null
+
+    /**
+     * A phone renders a palette colour a few units off per channel: 1 on a
+     * Redmi Note 11's Select disc, 5–7 on a Galaxy S7's gradient viewport
+     * (phase gate round 2, 2026-10-04). A wrong palette is off by far more, so
+     * the checks allow up to 8 on each of alpha, red, green and blue.
+     */
+    private fun near(expected: Int, actual: Int): Boolean = listOf(0, 8, 16, 24).all { shift ->
+        kotlin.math.abs(((expected ushr shift) and 255) - ((actual ushr shift) and 255)) <= 8
+    }
+
+    private fun assertNear(message: String, expected: Int, actual: Int) =
+        assertTrue("$message: expected #%08X, actual #%08X".format(expected, actual), near(expected, actual))
+
+    /**
+     * The screen spoken-feedback checks enable: Google's TalkBack, or Samsung's
+     * where that is the one installed. Null when the phone has neither.
+     */
+    private fun talkBackService(): String? {
+        val manager = instrumentation.targetContext.getSystemService(Context.ACCESSIBILITY_SERVICE)
+            as android.view.accessibility.AccessibilityManager
+        val ids = manager.installedAccessibilityServiceList.map { it.id }
+        return TALKBACK_PACKAGES.firstNotNullOfOrNull { pkg -> ids.firstOrNull { it.startsWith("$pkg/") } }
+    }
+
+    private fun isTalkBack(id: String) = TALKBACK_PACKAGES.any { id.startsWith("$it/") }
+
+    /**
+     * Whether this screen draws Vol +, Mute and Vol −. The paired TV decides —
+     * a stick that reports no volume support gets none — so the test reads the
+     * answer the app holds instead of assuming a TV. No answer draws them, the
+     * app's own rule. Call after [awaitStartupWork], once the read has landed.
+     */
+    private fun volumeShown(): Boolean {
+        val field = MainActivity::class.java.getDeclaredField("capabilities").apply { isAccessible = true }
+        var shown = true
+        instrumentation.runOnMainSync { shown = (field.get(activity) as Capabilities?)?.volume ?: true }
+        return shown
+    }
 
     private fun setting(namespace: String, key: String, value: String?) {
         require(value == null || value.all { it.isLetterOrDigit() || it in "_./:+-$" })
@@ -49,8 +89,9 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
                 "accessibility_enabled" to android.provider.Settings.Secure.getString(resolver, "accessibility_enabled"),
                 "font_scale" to android.provider.Settings.System.getString(resolver, "font_scale")
             )
-            val talkBack = "com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
             setting("system", "font_scale", "2.0")
+            // No TalkBack installed: nothing to enable, and the test says so.
+            val talkBack = talkBackService() ?: return
             setting("secure", "enabled_accessibility_services",
                 (services.orEmpty().split(':').filter { it.isNotEmpty() } + talkBack).distinct().joinToString(":"))
             setting("secure", "accessibility_enabled", "1")
@@ -60,7 +101,7 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
             repeat(50) {
                 if (!bound) {
                     bound = manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_SPOKEN)
-                        .any { it.id.startsWith("com.google.android.marvin.talkback/") }
+                        .any { isTalkBack(it.id) }
                     if (!bound) Thread.sleep(100)
                 }
             }
@@ -351,7 +392,7 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
                     if (view is Button && view.visibility == View.VISIBLE && view.rootView !== activity!!.window.decorView) {
                         val ripple = view.background as? android.graphics.drawable.RippleDrawable
                             ?: throw AssertionError("${view.text}: native button ripple is not inspected")
-                        assertEquals("${view.text}: native effect color ignores accent",
+                        assertNear("${view.text}: native effect color ignores accent",
                             palette.stateLayer, ripple.effectColor.defaultColor)
                         view.isPressed = true
                         buttons++
@@ -379,11 +420,11 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
         val rect = Rect().also { node(title).getBoundsInScreen(it) }
         val bitmap = automation.takeScreenshot() ?: throw AssertionError("dialog screenshot failed")
         try {
-            assertEquals("$title: dialog panel misses accent", palette.panel,
+            assertNear("$title: dialog panel misses accent", palette.panel,
                 bitmap.getPixel(rect.left - activity!!.dp(8), rect.centerY()))
             var ink = false
             for (y in rect.top until rect.bottom) for (x in rect.left until rect.right)
-                if (bitmap.getPixel(x, y) == palette.ink) ink = true
+                if (near(palette.ink, bitmap.getPixel(x, y))) ink = true
             assertTrue("$title: title misses palette", ink)
         } finally {
             bitmap.recycle()
@@ -455,7 +496,7 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
             val ink = 0xFFE8F6FF.toInt()
             val pixels = Rect(home.right, home.bottom, home.left, home.top)
             for (y in home.top until home.bottom) for (x in home.left until home.right) {
-                if (bitmap.getPixel(x, y) == ink) {
+                if (near(ink, bitmap.getPixel(x, y))) {
                     pixels.left = minOf(pixels.left, x)
                     pixels.top = minOf(pixels.top, y)
                     pixels.right = maxOf(pixels.right, x + 1)
@@ -464,7 +505,7 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
             }
             assertTrue("Home symbol was not drawn", pixels.width() > 0)
             assertTrue("Home symbol fills its touch target: $pixels", pixels.width() <= 20 * density && pixels.height() <= 20 * density)
-            assertEquals("Select disc is covered by an oversized mark", 0xFF17E8FF.toInt(),
+            assertNear("Select disc is covered by an oversized mark", 0xFF17E8FF.toInt(),
                 bitmap.getPixel(dial.centerX(), dial.centerY() - (20 * density).toInt()))
         } finally {
             bitmap.recycle()
@@ -488,19 +529,15 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
                     .outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
                 fun background(y: Int): Int = if (direction == SkinDirection.PLATE) palette.ground
                     else Skin.gradientAt(palette, y.toFloat() / bitmap.height)
-                fun close(expected: Int, actual: Int): Boolean = listOf(0, 8, 16).all { shift ->
-                    kotlin.math.abs(((expected ushr shift) and 255) - ((actual ushr shift) and 255)) <= 4
-                }
                 // Gutter pixels sample the viewport, beyond all control surfaces.
                 for (fraction in listOf(0.15f, 0.5f, 0.8f)) {
                     val y = (bitmap.height * fraction).toInt()
-                    assertTrue("$tag: viewport palette at $fraction; expected ${background(y)} actual ${bitmap.getPixel(2, y)}",
-                        close(background(y), bitmap.getPixel(2, y)))
+                    assertNear("$tag: viewport palette at $fraction", background(y), bitmap.getPixel(2, y))
                 }
                 val keyY = home.top + home.height() / 3
-                assertTrue("$tag: button fill", close(Skin.composite(palette.keyFill, background(keyY)), bitmap.getPixel(home.centerX(), keyY)))
+                assertNear("$tag: button fill", Skin.composite(palette.keyFill, background(keyY)), bitmap.getPixel(home.centerX(), keyY))
                 val density = activity!!.resources.displayMetrics.density
-                assertEquals("$tag: Select disc", palette.select,
+                assertNear("$tag: Select disc", palette.select,
                     bitmap.getPixel(dial.centerX(), dial.centerY() - (20 * density).toInt()))
             } finally {
                 bitmap.recycle()
@@ -536,13 +573,15 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
         val manager = instrumentation.targetContext.getSystemService(Context.ACCESSIBILITY_SERVICE)
             as android.view.accessibility.AccessibilityManager
         automation
+        assertNotNull("no TalkBack installed (Google or Samsung) for this live check", talkBackService())
         assertTrue("TalkBack must be enabled for this live check",
             manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_SPOKEN)
-                .any { it.id.startsWith("com.google.android.marvin.talkback/") })
+                .any { isTalkBack(it.id) })
         assertEquals("run this check at font scale 2.0", 2f,
             android.provider.Settings.System.getFloat(instrumentation.targetContext.contentResolver, "font_scale"))
-        val names = listOf("Up", "Down", "Left", "Right", "Select", "Options", "Home", "Back",
-            "Play/Pause", "Rewind", "Forward", "Sleep", "More options", "Vol +", "Mute", "Vol −")
+        val volume = listOf("Vol +", "Mute", "Vol −")
+        val always = listOf("Up", "Down", "Left", "Right", "Select", "Options", "Home", "Back",
+            "Play/Pause", "Rewind", "Forward", "Sleep", "More options")
         fun flatten(root: AccessibilityNodeInfo?): List<AccessibilityNodeInfo> {
             if (root == null) return emptyList()
             return listOf(root) + (0 until root.childCount).flatMap { flatten(root.getChild(it)) }
@@ -556,6 +595,12 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
                 val tag = "${preset.id}/$mode/$direction/words=$words"
                 val tree = flatten(automation.rootInActiveWindow)
                 val targets = tree.filter { it.isClickable && it.isEnabled }
+                val volumeShown = volumeShown()
+                val names = if (volumeShown) always + volume else always
+                if (!volumeShown) for (name in volume) {
+                    assertTrue("$tag: $name drawn for a TV that reports no volume support",
+                        targets.none { it.contentDescription?.toString() == name })
+                }
                 for (name in names) {
                     val target = targets.singleOrNull { it.contentDescription?.toString() == name }
                         ?: throw AssertionError("$tag: missing or duplicated named control $name")
@@ -627,7 +672,8 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
                 capture("density-120-${mode.name.lowercase()}-${direction.name.lowercase()}")
                 val bitmap = automation.takeScreenshot() ?: throw AssertionError("small-density screenshot failed")
                 try {
-                    for (name in listOf("Home", "Back", "Play/Pause", "Rewind", "Forward", "Sleep", "Mute")) {
+                    val marked = listOf("Home", "Back", "Play/Pause", "Rewind", "Forward", "Sleep")
+                    for (name in if (volumeShown()) marked + "Mute" else marked) {
                         val view = find(name) ?: throw AssertionError("$name missing")
                         val rect = bounds(view)
                         val half = view.context.dp(9)
@@ -683,5 +729,10 @@ class RemoteAppearanceTest : InstrumentationTestCase() {
         } finally {
             shell(if (original == null) "settings delete system font_scale" else "settings put system font_scale $original")
         }
+    }
+
+    private companion object {
+        /** Google's TalkBack first; Samsung ships its own build under its own package. */
+        val TALKBACK_PACKAGES = listOf("com.google.android.marvin.talkback", "com.samsung.android.app.talkback")
     }
 }

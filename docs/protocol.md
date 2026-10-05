@@ -786,7 +786,10 @@ one long attempt had.
 
 **Where the MAC comes from.** The TV announces it: `the test TV`'s SSDP answer carries
 `WAKEUP: MAC=00:00:5e:00:53:01;Timeout=20` (§ 5 lists every reply on this
-network). This app keeps the MAC with the pairing and refreshes it on every scan.
+network). This app keeps the MAC with the pairing, and a scan fills it in when the
+pairing has none. A scan never replaces a stored MAC: an SSDP answer is an
+unauthenticated UDP datagram whose source address the sender writes, so a replace
+would let anyone on the LAN point the wake at other hardware.
 A stored TV with no MAC also gets one SSDP search of its own after the first
 press that lands on it, once per app screen (`PairingFlow.learnWakeupMac`). The
 search fills a MAC in but never replaces one, and stores it only when every

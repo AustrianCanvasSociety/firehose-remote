@@ -6,6 +6,7 @@ import io.github.austriancanvassociety.firehoseremote.protocol.FakeSsdp
 import io.github.austriancanvassociety.firehoseremote.protocol.FakeTransport
 import io.github.austriancanvassociety.firehoseremote.protocol.FakeWakeOnLan
 import io.github.austriancanvassociety.firehoseremote.protocol.PairedDevice
+import io.github.austriancanvassociety.firehoseremote.protocol.Ssdp
 import io.github.austriancanvassociety.firehoseremote.protocol.SsdpSearch
 import io.github.austriancanvassociety.firehoseremote.protocol.TestClock
 import io.github.austriancanvassociety.firehoseremote.protocol.TokenStore
@@ -633,12 +634,12 @@ class PairingFlowTest {
     }
 
     /**
-     * A scan refreshes the MAC of a TV already paired — which is how a pairing
-     * made before the MAC was kept learns it — and leaves the selection where it
-     * was: a scan is not a choice of TV.
+     * A scan fills in the missing MAC of a TV already paired — which is how a
+     * pairing made before the MAC was kept learns it — and leaves the selection
+     * where it was: a scan is not a choice of TV.
      */
     @Test
-    fun aScanRefreshesAStoredTvsWakeupMacAndLeavesTheSelectionAlone() {
+    fun aScanFillsAStoredTvsMissingWakeupMacAndLeavesTheSelectionAlone() {
         val transport = FakeTransport()
         transport.responder = { TransportResponse(404, "") }
         val store = FakeTokenStore(
@@ -654,6 +655,85 @@ class PairingFlowTest {
 
         assertEquals(MAC, store.all().first { it.host == "192.0.2.10" }.wakeupMac)
         assertEquals("the selection did not move", "192.0.2.11", store.load()?.host)
+    }
+
+    /**
+     * A scan cannot replace a MAC already stored. An SSDP answer is an
+     * unauthenticated UDP datagram, and its source address is whatever the
+     * sender writes — so anyone on the LAN could otherwise point the wake at
+     * other hardware, and a deeply asleep TV would never wake again.
+     */
+    @Test
+    fun aScanCannotReplaceAStoredWakeupMac() {
+        val transport = FakeTransport()
+        transport.responder = { TransportResponse(404, "") }
+        val store = FakeTokenStore(PairedDevice(host = "192.0.2.10", name = "TestTV", token = "T1", wakeupMac = MAC))
+        val ssdp = FakeSsdp(listOf(FakeSsdp.response("192.0.2.10", wakeupMac = "00:00:5e:00:53:99")))
+
+        flow(transport, store, ssdp = ssdp).scan()
+
+        assertEquals(MAC, store.all().single().wakeupMac)
+    }
+
+    /**
+     * Re-pairing a stored TV that a scan found cannot replace its MAC either:
+     * the scan's MAC rides on the found device, and pairing it must not carry
+     * an unauthenticated answer past the stored one.
+     */
+    @Test
+    fun rePairingAStoredTvKeepsItsMacOverTheScansMac() {
+        val transport = FakeTransport()
+        transport.responder = pairingResponder()
+        val store = FakeTokenStore(PairedDevice(host = "192.0.2.10", name = "TestTV", token = "T1", wakeupMac = MAC))
+        val ssdp = FakeSsdp(listOf(FakeSsdp.response("192.0.2.10", wakeupMac = OTHER_MAC)))
+        val flow = flow(transport, store, ssdp = ssdp)
+
+        val found = (flow.scan() as PairingFlow.State.Discovered).devices.single()
+        flow.select(found)
+        flow.pair(found, "1234")
+
+        assertEquals("the stored MAC survives the re-pair", MAC, store.all().single().wakeupMac)
+    }
+
+    /**
+     * A scan fills a missing MAC only when every answer it kept for the address
+     * agrees — the rule [PairingFlow.learnWakeupMac] applies. Two answers from
+     * one address under different USNs both survive the scan's de-duplication,
+     * and storing the last one would let a forged answer plant a MAC.
+     */
+    @Test
+    fun aScanWhoseAnswersDisagreeAboutAMacFillsNothing() {
+        val transport = FakeTransport()
+        transport.responder = { TransportResponse(404, "") }
+        val store = FakeTokenStore(PairedDevice(host = "192.0.2.10", name = "TestTV", token = "T1"))
+        val ssdp = FakeSsdp(
+            listOf(
+                FakeSsdp.response("192.0.2.10", usn = "uuid:one::${Ssdp.SERVICE_TYPE}", wakeupMac = MAC),
+                FakeSsdp.response("192.0.2.10", usn = "uuid:two::${Ssdp.SERVICE_TYPE}", wakeupMac = OTHER_MAC)
+            )
+        )
+
+        flow(transport, store, ssdp = ssdp).scan()
+
+        assertNull(store.all().single().wakeupMac)
+    }
+
+    /** An answer that carries no MAC does not veto one that does, as in [PairingFlow.learnWakeupMac]. */
+    @Test
+    fun aScanWhereOnlyOneAnswerCarriesAMacFillsIt() {
+        val transport = FakeTransport()
+        transport.responder = { TransportResponse(404, "") }
+        val store = FakeTokenStore(PairedDevice(host = "192.0.2.10", name = "TestTV", token = "T1"))
+        val ssdp = FakeSsdp(
+            listOf(
+                FakeSsdp.response("192.0.2.10", usn = "uuid:one::${Ssdp.SERVICE_TYPE}", wakeupMac = MAC),
+                FakeSsdp.response("192.0.2.10", usn = "uuid:two::${Ssdp.SERVICE_TYPE}")
+            )
+        )
+
+        flow(transport, store, ssdp = ssdp).scan()
+
+        assertEquals(MAC, store.all().single().wakeupMac)
     }
 
     /**
@@ -1706,6 +1786,26 @@ class PairingFlowTest {
                 format = rowFormat
             )
         )
+    }
+
+    /**
+     * The Wake-on-LAN MAC never reaches a row, in any combination of shared
+     * name, silence and pairing. It means nothing to the people this list is
+     * for; the address shows only to tell two same-named TVs apart.
+     */
+    @Test
+    fun noRowShowsTheWakeupMac() {
+        val flow = flow(FakeTransport())
+        for (answering in listOf(true, false)) for (stored in listOf(true, false)) for (shared in listOf(true, false)) {
+            val device = Device(name = "Home Gym", ip = "192.0.2.10", answering = answering, wakeupMac = MAC)
+            val label = flow.scanRowLabel(
+                device,
+                storedHosts = if (stored) setOf(device.ip) else emptySet(),
+                shared = if (shared) setOf(device.name) else emptySet(),
+                format = rowFormat
+            )
+            assertFalse("MAC shown in row: $label", label.contains(MAC, ignoreCase = true))
+        }
     }
 
     // --- The first-run screen ------------------------------------------------

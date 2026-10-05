@@ -299,6 +299,8 @@ class FireTvClient(
             releaseKey(url, headers, action)
         } catch (releaseFailed: IOException) {
             stopped.addSuppressed(releaseFailed)
+        } catch (releaseStopped: InterruptedException) {
+            stopped.addSuppressed(releaseStopped)
         }
         return stopped
     }
@@ -307,13 +309,32 @@ class FireTvClient(
      * `keyUp` is what stops the TV's key-repeat loop, so losing it is not a
      * missing press — it is a TV that keeps moving. That buys it one retry.
      * A duplicate is harmless: stopping an already-stopped loop is a no-op.
-     * Only a timeout is retried; a status code is a real answer from the TV.
+     * A timeout is retried; a status code is a real answer from the TV.
+     *
+     * An interrupt while keyUp is on the wire (Back or Cancel at the end of a
+     * tap) leaves unknown whether the TV got it, so it is sent once more before
+     * the press stops. The flag is cleared first, as for an interrupted keyDown,
+     * so the resend is not failed by the same interrupt. The retry after a
+     * timeout is a keyUp like the first, so an interrupt during it is handled
+     * the same way.
      */
     private fun releaseKey(url: String, headers: Map<String, String>, action: String) {
+        val sendKeyUp = { transport.request("POST", url, """{"keyActionType":"keyUp"}""", headers) }
         val keyUpRes = try {
-            transport.request("POST", url, """{"keyActionType":"keyUp"}""", headers)
-        } catch (e: TransportTimeout) {
-            transport.request("POST", url, """{"keyActionType":"keyUp"}""", headers)
+            try {
+                sendKeyUp()
+            } catch (e: TransportTimeout) {
+                sendKeyUp()
+            }
+        } catch (e: InterruptedIOException) {
+            Thread.interrupted()
+            val stopped = stopped("sendKey($action): keyUp", e)
+            try {
+                sendKeyUp()
+            } catch (resendFailed: IOException) {
+                stopped.addSuppressed(resendFailed)
+            }
+            throw stopped
         }
         if (!keyUpRes.ok) {
             throw TransportStatus(keyUpRes.status, "firehose-remote: sendKey($action): keyUp status ${keyUpRes.status}")
@@ -357,19 +378,30 @@ class FireTvClient(
     }
 
     /**
-     * POST to [url] with no body, and translate a non-2xx into a [TransportStatus]
-     * naming [label] in its message. Shared by [pressKey]'s discrete branch and
-     * [playPause].
+     * POST [body] (none by default) to [url], and translate a non-2xx into a
+     * [TransportStatus] naming [label] in its message. Shared by every
+     * one-request control: [pressKey]'s discrete branch, [playPause],
+     * [scanBackward] and [scanForward].
+     *
+     * An interrupt mid-request is a stop (Cancel, or the screen going away),
+     * not a TV that failed to answer, so it surfaces as one — reported as a
+     * failure, it would draw "didn't answer" after a Cancel and drop the taps
+     * queued behind it.
      */
     private fun postCommand(
         host: String,
         url: String,
         headers: Map<String, String>,
         label: String,
-        onWaking: () -> Unit
+        onWaking: () -> Unit,
+        body: String? = null
     ) {
         withWakeRecovery(host, onWaking) {
-            val res = transport.request("POST", url, null, headers)
+            val res = try {
+                transport.request("POST", url, body, headers)
+            } catch (e: InterruptedIOException) {
+                throw stopped(label, e)
+            }
             if (!res.ok) {
                 throw TransportStatus(res.status, "firehose-remote: $label: status ${res.status}")
             }
@@ -385,13 +417,7 @@ class FireTvClient(
      */
     fun scanBackward(host: String, token: String, onWaking: () -> Unit = {}) {
         val url = "https://$host:$PORT_COMMAND/v1/media?action=scan"
-        val headers = commandHeaders(token)
-        withWakeRecovery(host, onWaking) {
-            val res = transport.request("POST", url, SCAN_BACK_BODY, headers)
-            if (!res.ok) {
-                throw TransportStatus(res.status, "firehose-remote: scanBackward: status ${res.status}")
-            }
-        }
+        postCommand(host, url, commandHeaders(token), "scanBackward", onWaking, SCAN_BACK_BODY)
     }
 
     /**
@@ -409,13 +435,7 @@ class FireTvClient(
      */
     fun scanForward(host: String, token: String, onWaking: () -> Unit = {}) {
         val url = "https://$host:$PORT_COMMAND/v1/media?action=scan"
-        val headers = commandHeaders(token)
-        withWakeRecovery(host, onWaking) {
-            val res = transport.request("POST", url, SCAN_FORWARD_BODY, headers)
-            if (!res.ok) {
-                throw TransportStatus(res.status, "firehose-remote: scanForward: status ${res.status}")
-            }
-        }
+        postCommand(host, url, commandHeaders(token), "scanForward", onWaking, SCAN_FORWARD_BODY)
     }
 
     /**
@@ -561,6 +581,12 @@ class FireTvClient(
      * [InterruptedIOException] (observed 2026-09-28). A timeout never arrives
      * that way here — the transport reports it as [TransportTimeout] — so this
      * is always a stop, never a TV that failed to answer.
+     *
+     * The type is the only signal there is. The platform HTTP stack clears the
+     * thread's interrupt flag before it throws (measured 2026-10-04 on a Redmi
+     * Note 13 Pro 5G, Android 16: the flag read false after every interrupted
+     * request), so a check of `isInterrupted` here would read every real stop
+     * as a failed request.
      */
     private fun stopped(what: String, cause: InterruptedIOException): InterruptedException =
         InterruptedException("firehose-remote: $what: interrupted mid-request").apply { initCause(cause) }

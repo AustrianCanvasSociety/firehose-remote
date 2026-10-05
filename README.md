@@ -28,7 +28,7 @@ Four phases, each ending in something visible on a real phone.
 | 1 — It finds your TV | Scan, list, and PIN-pair with a fire TV on the LAN | Shipped |
 | 2 — It drives your TV | Every button moves the TV, one tile per D-pad press | Shipped |
 | 3 — It survives real use, and ships | Auto-wake on a sleeping TV, plus the F-Droid work | Shipped |
-| 4 — It is safe to hand to strangers | Press safety, clear errors, any text size, screen-reader support | Released (v0.1.2) |
+| 4 — It is safe to hand to strangers | Press safety, clear errors, any text size, screen-reader support | Released (v0.1.3) |
 
 Phase 1 shipped: the app discovers fire TVs on the local network, lists them,
 pairs with the PIN shown on the TV, and persists the token so a relaunch skips

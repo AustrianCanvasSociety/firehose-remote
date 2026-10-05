@@ -1,0 +1,2 @@
+A press cut short by Back or Cancel now always lets go of the key, so the TV no
+longer keeps repeating it. Re-pairing a TV keeps the address it wakes by.
